@@ -1,0 +1,31 @@
+cp ./hosts /etc/hosts
+
+nohup mongod --bind_ip_all &
+sleep 15
+mongo --eval 'db.createUser({user: "mongo-admin", pwd: "password", roles:[{role: "root", db: "admin"}]})' admin
+mkdir -p /opt/mongo
+cp ./mongo-keyfile /opt/mongo
+chmod 400 /opt/mongo/mongo-keyfile
+chown mongodb:mongodb /opt/mongo/mongo-keyfile
+
+kill -2 `pgrep mongo`
+sleep 10
+
+
+# Initializing Config Server
+
+cp ./mongod.conf /etc/mongod.conf
+sed -i "s/.*  bindIp: 127.0.0.1.*/  bindIp: ${IP}/" /etc/mongod.conf
+sed -i "s/.*  port: 27017.*/  port: ${PORT}/" /etc/mongod.conf
+sed -i "s/.*#replication:.*/replication:\n  replSetName: ${REPL_NAME}/" /etc/mongod.conf
+sed -i "s/.*#sharding:.*/sharding:\n  clusterRole: \"${CLUSTER_ROLE}\"/" /etc/mongod.conf
+
+nohup mongod --bind_ip_all --config /etc/mongod.conf &
+sleep 15
+
+
+# Initiate Replica Set
+
+if [ ${INIT} -eq 1 ]; then 
+    mongo mongo-config-1:27019 -u mongo-admin -p password --authenticationDatabase admin --eval 'rs.initiate( { _id: "configReplSet", configsvr: true, members: [ { _id: 0, host: "mongo-config-1:27019" }, { _id: 1, host: "mongo-config-2:27019" } ] } )'
+fi

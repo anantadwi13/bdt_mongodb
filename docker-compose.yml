@@ -1,0 +1,150 @@
+version: '3.3'
+
+services: 
+  config_server_1:
+    image: mongo
+    environment: 
+      - INIT=1
+      - IP=192.168.29.11
+      - PORT=27019
+      - CLUSTER_ROLE=configsvr
+      - REPL_NAME=configReplSet
+    volumes: 
+      - config_server_1:/data/db
+      - ./config_server/:/root/
+    # depends_on: 
+    #   - db_server_1
+    #   - db_load_balancer
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks: 
+      bdt_network:
+        ipv4_address: 192.168.29.11
+    command: /bin/bash -c "cd /root/config; /bin/bash ./init.sh; tail -f /dev/null"
+
+  config_server_2:
+    image: mongo
+    environment: 
+      - INIT=0
+      - IP=192.168.29.12
+      - PORT=27019
+      - CLUSTER_ROLE=configsvr
+      - REPL_NAME=configReplSet
+    volumes: 
+      - config_server_2:/data/db
+      - ./config_server/:/root/
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks: 
+      bdt_network:
+        ipv4_address: 192.168.29.12
+    command: /bin/bash -c "cd /root/config; /bin/bash ./init.sh; tail -f /dev/null"
+
+  router_server:
+    image: mongo
+    environment: 
+      - IP=192.168.29.13
+      - PORT=27017
+      - REPLICA_SET=configReplSet\/mongo-config-1:27019,mongo-config-2:27019
+    volumes: 
+      - config_query_router:/data/db
+      - ./router_server/:/root/
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    ports: 
+      - "27017:27017"
+    networks: 
+      bdt_network:
+        ipv4_address: 192.168.29.13
+    command: /bin/bash -c "cd /root/config; /bin/bash ./init.sh; tail -f /dev/null"
+
+  shard_server_1:
+    image: mongo
+    environment: 
+      - INIT=1
+      - IP=192.168.29.14
+      - PORT=27017
+      - HOSTNAME=mongo-shard-1
+      - CLUSTER_ROLE=shardsvr
+      - REPL_NAME=shardReplSet
+    volumes: 
+      - shard_server_1:/data/db
+      - ./shard_server/:/root/
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    depends_on: 
+      - router_server
+    networks: 
+      bdt_network:
+        ipv4_address: 192.168.29.14
+    command: /bin/bash -c "cd /root/config; /bin/bash ./init.sh; tail -f /dev/null"
+
+  shard_server_2:
+    image: mongo
+    environment: 
+      - INIT=0
+      - IP=192.168.29.15
+      - PORT=27017
+      - HOSTNAME=mongo-shard-2
+      - CLUSTER_ROLE=shardsvr
+      - REPL_NAME=shardReplSet
+    volumes: 
+      - shard_server_2:/data/db
+      - ./shard_server/:/root/
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    depends_on: 
+      - router_server
+    networks: 
+      bdt_network:
+        ipv4_address: 192.168.29.15
+    command: /bin/bash -c "cd /root/config; /bin/bash ./init.sh; tail -f /dev/null"
+
+  shard_server_3:
+    image: mongo
+    environment: 
+      - INIT=0
+      - IP=192.168.29.16
+      - PORT=27017
+      - HOSTNAME=mongo-shard-3
+      - CLUSTER_ROLE=shardsvr
+      - REPL_NAME=shardReplSet
+    volumes: 
+      - shard_server_3:/data/db
+      - ./shard_server/:/root/
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    depends_on: 
+      - router_server
+    networks: 
+      bdt_network:
+        ipv4_address: 192.168.29.16
+    command: /bin/bash -c "cd /root/config; /bin/bash ./init.sh; tail -f /dev/null"
+
+volumes: 
+  config_server_1: {}
+  config_server_2: {}
+  config_query_router: {}
+  shard_server_1: {}
+  shard_server_2: {}
+  shard_server_3: {}
+
+networks:
+  bdt_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.29.0/24
